@@ -1,0 +1,6 @@
+[package]
+name = "crass"
+version = "1.0.7"
+
+# No native code and no port: crass.rb and crass/*.rb are Crass 1.0.7
+# (Ryan Grove, MIT), byte for byte. The version is the gem's.

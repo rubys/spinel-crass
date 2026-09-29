@@ -625,7 +625,12 @@ module Crass
       else
         # I know this formula looks nutty, but it's exactly what's defined in
         # the spec, and it works.
-        value = s * (i + f * 10**-d) * 10**exponent
+        # spinel-crass: `f * 10**-d` and `10**exponent` as exact Rationals built
+        # with a non-negative power. CRuby answers the same Rational either way;
+        # Spinel types `10**n` of an int local Integer and raises RangeError
+        # for a negative n (docs/limitations.md, "Integer#** with a negative
+        # exponent"). The only change to Crass 1.0.7 — see README.
+        value = s * (i + Rational(f, 10**d)) * (exponent < 0 ? Rational(1, 10**-exponent) : 10**exponent)
 
         # Maximum and minimum values aren't defined in the spec, but are
         # enforced here for sanity.
