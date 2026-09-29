@@ -69,7 +69,4 @@ The inputs are the corpora Crass's own suite uses:
 
 The snapshots come from the gem. None are written by hand.
 
-`parse_test` currently differs from the gem in one place, the inspect of
-two tokens holding U+0080/U+0081. That is Spinel's `String#inspect`
-([spinel#5984](https://github.com/matz/spinel/issues/5984)), not Crass:
-the tokens themselves are right.
+All three match the gem on Spinel master 6be3ba03e ([spinel#5984](https://github.com/matz/spinel/issues/5984), an `inspect` difference in `parse_test`, is fixed).
