@@ -2,7 +2,7 @@
 
 [Crass](https://github.com/rgrove/crass), Ryan Grove's CSS parser, for
 Spinel: the gem's own source, **not a port**. `crass.rb` and
-`crass/*.rb` are Crass 1.0.7 byte for byte, except one expression (below).
+`crass/*.rb` are Crass 1.0.7 byte for byte, except two changes in one method (below).
 `require "crass"` and the names are the gem's.
 
 It is here because Loofah's `style`-attribute scrubber (and so

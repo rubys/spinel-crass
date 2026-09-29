@@ -89,6 +89,8 @@ STYLES = [
   "fill: url(#grad); stroke: #fff",
   "line-height: 1.5e-1; width: 2E3px; opacity: .5; margin: -0.25em +3.75e+2%",
   "z-index: 1e400; top: -1e-400px; left: 1.25e-3px; right: 123456.789012e-4px",
+  "left: 1234567890.123456789e-10px; top: 99999999999999999999.5em; width: 1e99999999999999999999px",
+  "margin: 0.000000000000000000000001px 9223372036854775807px 1e-5000000px",
 ]
 
 File.write("test/properties_test.rb", <<~RUBY)
@@ -110,6 +112,20 @@ File.write("test/properties_test.rb", <<~RUBY)
       kept << { node: :semicolon, raw: ";" }
     end
     puts Crass::Parser.stringify(kept).inspect
+  end
+
+  # An integer past 64 bits: its value is a Float here where CRuby's is a
+  # Bignum (see README), so what is printed is everything else -- the text
+  # a sanitizer reads back.
+  ["left: 12345678901234567890px; top: -99999999999999999999; z-index: 9223372036854775808"].each do |style|
+    tree = Crass.parse_properties(style)
+    puts Crass::Parser.stringify(tree).inspect
+    tree.each do |node|
+      next unless node[:node] == :property
+      node[:children].each do |c|
+        puts [node[:name], c[:node], c[:raw], c[:repr], c[:type], c[:unit]].inspect
+      end
+    end
   end
 
   ["url(#a) #b 'c' d", "url(http://x/#a)", "  none  "].each do |v|

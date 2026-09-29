@@ -18,6 +18,10 @@ module Crass
     RE_NUMBER_EXPONENT = /[Ee][+-]?[0-9]+/
     RE_NUMBER_SIGN     = /[+-]/
 
+    # spinel-crass: at or past this a Float cannot be a 64-bit Integer (2**63
+    # is 9.223e18); see convert_string_to_number.
+    INT64_FLOAT_LIMIT = 9.2e18
+
     RE_NUMBER_STR = /\A
       (?<sign> [+-]?)
       (?<integer> [0-9]*)
@@ -435,7 +439,10 @@ module Crass
       type = number[2]
 
       if type == :integer
-        value = value.to_i
+        # spinel-crass: an integer too long for 64 bits keeps the Float that
+        # convert_string_to_number answered for it, where CRuby's to_i would
+        # be a Bignum (see there).
+        value = value.to_i unless value.is_a?(Float) && value.abs >= INT64_FLOAT_LIMIT
       else
         value = value.to_f
       end
@@ -591,6 +598,18 @@ module Crass
     def convert_string_to_number(str)
       matches = RE_NUMBER_STR.match(str)
 
+      # spinel-crass: Spinel's Integer and Rational are 64-bit by default
+      # (docs/int-overflow.md; limitations.md, "Rational precision") and
+      # raise RangeError past that, where CRuby grows them. A number whose
+      # digits and exponent could not be computed exactly in 64 bits is
+      # answered as a Float read from its own text -- correctly rounded, so
+      # the same Float CRuby's exact value converts to -- and clamped as
+      # below. Only the value changes (and only for such a number); repr and
+      # raw, which is what Loofah reads, are the text either way.
+      unless exact_in_int64?(matches)
+        return float_from_parts(matches)
+      end
+
       s = matches[:sign] == '-' ? -1 : 1
       i = matches[:integer].to_i
       f = matches[:fractional].to_i
@@ -641,6 +660,51 @@ module Crass
         end
       end
 
+      value
+    end
+
+    # spinel-crass: whether convert_string_to_number's exact arithmetic
+    # stays inside 64 bits: the significant integer digits, the fraction's
+    # digits and the exponent's magnitude together within 18 digits.
+    def exact_in_int64?(matches)
+      int_digits = matches[:integer].sub(/\A0+/, '').length
+      frac_digits = matches[:fractional] ? matches[:fractional].length : 0
+      exp_str = (matches[:exponent] || '').sub(/\A0+/, '')
+      return false if exp_str.length > 4
+
+      if frac_digits == 0 && exp_str.empty?
+        # A plain integer: exact up to 2**63 - 1.
+        digits = matches[:integer].sub(/\A0+/, '')
+        return digits.length < 19 || (digits.length == 19 && digits <= '9223372036854775807')
+      end
+      int_digits + frac_digits + exp_str.to_i <= 18
+    end
+
+    # spinel-crass: the number as a Float read from its parts (so any sign,
+    # empty integer or empty exponent parses), saturated at Float::MAX as
+    # convert_string_to_number's own guards saturate.
+    def float_from_parts(matches)
+      int_str = matches[:integer].empty? ? '0' : matches[:integer]
+      frac_str = matches[:fractional].nil? || matches[:fractional].empty? ? '0' : matches[:fractional]
+      exp_str = matches[:exponent].nil? || matches[:exponent].empty? ? '0' : matches[:exponent]
+      exp_str = exp_str.sub(/\A0+(?=.)/, '')
+      sign = matches[:sign] == '-' ? '-' : ''
+      exp_sign = matches[:exponent_sign] == '-' ? '-' : ''
+
+      if exp_str.length > 6
+        # Past any double: saturate or underflow without parsing the exponent.
+        if exp_sign == '-' || (matches[:integer] + (matches[:fractional] || '')).delete('0').empty?
+          return sign == '-' ? -0.0 : 0.0
+        end
+        return sign == '-' ? -Float::MAX : Float::MAX
+      end
+
+      value = "#{sign}#{int_str}.#{frac_str}e#{exp_sign}#{exp_str}".to_f
+      if value > Float::MAX
+        value = Float::MAX
+      elsif value < -Float::MAX
+        value = -Float::MAX
+      end
       value
     end
 
